@@ -17,26 +17,35 @@
   const HIRO_POX = 'https://api.hiro.so/v2/pox';
   const MEMPOOL = 'https://mempool.space/api';
 
-  const MAINNET_FALLBACK = Object.freeze({
-    reward_cycle_length: 2100,
-    prepare_phase_block_length: 100,
-    first_burnchain_block_height: 666050,
-  });
+  // Mainnet PoX constants — used only when Hiro is unreachable.
+  const FALLBACK_REWARD_CYCLE_LENGTH = 2100;
+  const FALLBACK_PREPARE_PHASE_LENGTH = 100;
+  const FALLBACK_FIRST_BURN_HEIGHT = 666050;
+
+  const DEFAULT_BLOCK_MS = 600_000; // 10 min/block — used only if mempool is unreachable.
 
   // ---------- module state ----------
-  let _info = null;
-  let _infoPromise = null;
-  const _heightCache = new Map(); // height → ms timestamp
+  let cachedInfo = null;          // last resolved info object (returned to callers)
+  let inFlightInfo = null;        // de-duplicates concurrent getInfo() calls
+  let btcTipMs = null;            // raw ms timestamp of the BTC tip (internal)
+  let avgBlockMs = DEFAULT_BLOCK_MS; // raw ms-per-block average (internal)
+  const heightCache = new Map();  // height → ms timestamp (mempool block lookups)
 
   // ---------- helpers ----------
-  const iso = (ms) => (ms == null ? null : new Date(ms).toISOString());
+  function iso(ms) {
+    return ms == null ? null : new Date(ms).toISOString();
+  }
+
+  async function fetchJson(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`${url} → ${r.status}`);
+    return r.json();
+  }
 
   // ---------- low-level fetchers ----------
   async function fetchPox() {
     try {
-      const r = await fetch(HIRO_POX, { cache: 'no-store' });
-      if (!r.ok) throw new Error('hiro ' + r.status);
-      const d = await r.json();
+      const d = await fetchJson(HIRO_POX);
       return {
         reward_cycle_length: d.reward_cycle_length,
         prepare_phase_block_length: d.prepare_phase_block_length,
@@ -46,54 +55,71 @@
         ok: true,
       };
     } catch (e) {
-      return { ...MAINNET_FALLBACK, current_burnchain_block_height: null, current_cycle_id: null, ok: false, error: String(e.message || e) };
+      return {
+        reward_cycle_length: FALLBACK_REWARD_CYCLE_LENGTH,
+        prepare_phase_block_length: FALLBACK_PREPARE_PHASE_LENGTH,
+        first_burnchain_block_height: FALLBACK_FIRST_BURN_HEIGHT,
+        current_burnchain_block_height: null,
+        current_cycle_id: null,
+        ok: false,
+        error: String(e.message || e),
+      };
     }
   }
 
+  // Returns the difficulty-epoch average block interval, or null on failure.
+  async function fetchDifficultyAvgMs() {
+    try {
+      const d = await fetchJson(`${MEMPOOL}/v1/difficulty-adjustment`);
+      if (d.timeAvg > 60_000 && d.timeAvg < 1_800_000) return d.timeAvg;
+    } catch (_) { /* fall through */ }
+    return null;
+  }
+
+  // Returns { tipHeight, tipMs, recentAvgMs } from mempool's recent blocks list.
+  // Populates heightCache as a side effect. Returns null fields on failure.
+  async function fetchRecentBlocks() {
+    try {
+      const blocks = await fetchJson(`${MEMPOOL}/v1/blocks`);
+      for (const b of blocks) heightCache.set(b.height, b.timestamp * 1000);
+      if (!blocks.length) return { tipHeight: null, tipMs: null, recentAvgMs: null };
+      const tipHeight = blocks[0].height;
+      const tipMs = blocks[0].timestamp * 1000;
+      let recentAvgMs = null;
+      if (blocks.length >= 5) {
+        const span = (blocks[0].timestamp - blocks[blocks.length - 1].timestamp) * 1000;
+        recentAvgMs = span / (blocks.length - 1);
+      }
+      return { tipHeight, tipMs, recentAvgMs };
+    } catch (_) {
+      return { tipHeight: null, tipMs: null, recentAvgMs: null };
+    }
+  }
+
+  // Combines the two mempool calls into a single rate summary.
   async function fetchBtcRate() {
-    const out = { avgMs: 600_000, source: 'fallback (10:00 min/block)', tipHeight: null, tipMs: null, ok: false };
-    try {
-      const r = await fetch(`${MEMPOOL}/v1/difficulty-adjustment`, { cache: 'no-store' });
-      if (r.ok) {
-        const d = await r.json();
-        if (d.timeAvg && d.timeAvg > 60_000 && d.timeAvg < 1_800_000) {
-          out.avgMs = d.timeAvg;
-          out.source = 'mempool.space difficulty-epoch average';
-          out.ok = true;
-        }
-      }
-    } catch (_) { /* fall through */ }
-    try {
-      const r = await fetch(`${MEMPOOL}/v1/blocks`, { cache: 'no-store' });
-      if (r.ok) {
-        const blocks = await r.json();
-        for (const b of blocks) _heightCache.set(b.height, b.timestamp * 1000);
-        if (blocks.length) {
-          out.tipHeight = blocks[0].height;
-          out.tipMs = blocks[0].timestamp * 1000;
-          if (!out.ok && blocks.length >= 5) {
-            const span = (blocks[0].timestamp - blocks[blocks.length - 1].timestamp) * 1000;
-            out.avgMs = span / (blocks.length - 1);
-            out.source = `mempool.space last ${blocks.length} blocks`;
-            out.ok = true;
-          }
-        }
-      }
-    } catch (_) { /* fall through */ }
-    return out;
+    const [diffAvgMs, tip] = await Promise.all([
+      fetchDifficultyAvgMs(),
+      fetchRecentBlocks(),
+    ]);
+    if (diffAvgMs != null) {
+      return { avgMs: diffAvgMs, source: 'mempool.space difficulty-epoch average', ok: true, ...tip };
+    }
+    if (tip.recentAvgMs != null) {
+      return { avgMs: tip.recentAvgMs, source: 'mempool.space recent blocks', ok: true, ...tip };
+    }
+    return { avgMs: DEFAULT_BLOCK_MS, source: 'fallback (10:00 min/block)', ok: false, ...tip };
   }
 
   async function fetchBlockTimestamp(height) {
-    if (_heightCache.has(height)) return _heightCache.get(height);
+    if (heightCache.has(height)) return heightCache.get(height);
     try {
       const hashRes = await fetch(`${MEMPOOL}/block-height/${height}`);
       if (!hashRes.ok) throw new Error('hash ' + hashRes.status);
       const hash = (await hashRes.text()).trim();
-      const blkRes = await fetch(`${MEMPOOL}/block/${hash}`);
-      if (!blkRes.ok) throw new Error('block ' + blkRes.status);
-      const blk = await blkRes.json();
+      const blk = await fetchJson(`${MEMPOOL}/block/${hash}`);
       const ms = blk.timestamp * 1000;
-      _heightCache.set(height, ms);
+      heightCache.set(height, ms);
       return ms;
     } catch (_) {
       return null;
@@ -102,15 +128,19 @@
 
   // ---------- public: getInfo ----------
   async function getInfo({ force = false } = {}) {
-    if (_info && !force) return _info;
-    if (_infoPromise && !force) return _infoPromise;
-    _infoPromise = (async () => {
+    if (cachedInfo && !force) return cachedInfo;
+    if (inFlightInfo && !force) return inFlightInfo;
+    inFlightInfo = (async () => {
       const [pox, rate] = await Promise.all([fetchPox(), fetchBtcRate()]);
       const currentBurn = pox.current_burnchain_block_height ?? rate.tipHeight;
-      const currentCycle = pox.current_cycle_id ?? (currentBurn != null
-        ? Math.floor((currentBurn - pox.first_burnchain_block_height) / pox.reward_cycle_length)
-        : null);
-      const info = {
+      let currentCycle = pox.current_cycle_id;
+      if (currentCycle == null && currentBurn != null) {
+        currentCycle = Math.floor((currentBurn - pox.first_burnchain_block_height) / pox.reward_cycle_length);
+      }
+      // Stash raw ms values in module state so the public info stays clean.
+      btcTipMs = rate.tipMs;
+      avgBlockMs = rate.avgMs;
+      cachedInfo = {
         network: 'mainnet',
         reward_cycle_length: pox.reward_cycle_length,
         prepare_phase_block_length: pox.prepare_phase_block_length,
@@ -124,21 +154,17 @@
         avg_block_source: rate.source,
         sources: { pox: pox.ok ? 'hiro' : 'fallback', btc: rate.ok ? 'mempool.space' : 'fallback' },
         fetched_at: iso(Date.now()),
-        // raw ms — non-enumerable for clients that want it, but kept on the object
-        _avg_block_ms: rate.avgMs,
-        _btc_tip_ms: rate.tipMs,
       };
-      _info = info;
-      _infoPromise = null;
-      return info;
+      inFlightInfo = null;
+      return cachedInfo;
     })();
-    return _infoPromise;
+    return inFlightInfo;
   }
 
   // ---------- pure math ----------
   function cycleHeights(info, cycleId) {
     const start = info.first_burnchain_block_height + cycleId * info.reward_cycle_length;
-    const prepareStart = start + (info.reward_cycle_length - info.prepare_phase_block_length);
+    const prepareStart = start + info.reward_phase_block_length;
     const end = start + info.reward_cycle_length - 1;
     return { start, prepareStart, end };
   }
@@ -154,12 +180,11 @@
     const off = height - info.first_burnchain_block_height;
     const cycleId = Math.floor(off / info.reward_cycle_length);
     const offIn = off % info.reward_cycle_length;
-    const isPrepare = offIn >= (info.reward_cycle_length - info.prepare_phase_block_length);
+    const isPrepare = offIn >= info.reward_cycle_length - info.prepare_phase_block_length;
     return {
       valid: true,
       cycle_id: cycleId,
       block_in_cycle: offIn + 1,
-      offset_in_cycle: offIn,
       phase: isPrepare ? 'prepare' : 'reward',
       anchors_cycle: isPrepare ? cycleId + 1 : null,
     };
@@ -171,10 +196,14 @@
       return { ms, timestamp: iso(ms), forecast: false };
     }
     const baseHeight = info.btc_tip_height ?? info.current_burn_block_height;
-    const baseMs = info._btc_tip_ms ?? Date.now();
     if (baseHeight == null) return { ms: null, timestamp: null, forecast: true };
-    const ms = baseMs + (height - baseHeight) * info._avg_block_ms;
+    const baseMs = btcTipMs ?? Date.now();
+    const ms = baseMs + (height - baseHeight) * avgBlockMs;
     return { ms, timestamp: iso(ms), forecast: true };
+  }
+
+  function pointFor(block, ts) {
+    return { block, timestamp: ts.timestamp, forecast: ts.forecast };
   }
 
   // ---------- public: getCycle / getCurrent ----------
@@ -187,9 +216,12 @@
       timestampForBlock(info, h.prepareStart),
       timestampForBlock(info, h.end),
     ]);
-    const status = id < info.current_cycle_id ? 'past'
-                 : id > info.current_cycle_id ? 'future'
-                 : 'current';
+
+    let status;
+    if (id < info.current_cycle_id)      status = 'past';
+    else if (id > info.current_cycle_id) status = 'future';
+    else                                 status = 'current';
+
     let progress = null;
     if (status === 'current' && info.current_burn_block_height != null) {
       const elapsed = info.current_burn_block_height - h.start + 1;
@@ -200,30 +232,13 @@
         in_prepare_phase: info.current_burn_block_height >= h.prepareStart,
       };
     }
+
     return {
       cycle_id: id,
       status,
-      total_blocks: info.reward_cycle_length,
-      reward_phase: {
-        start_block: h.start,
-        end_block: h.prepareStart - 1,
-        block_count: info.reward_phase_block_length,
-        start_timestamp: startTs.timestamp,
-        forecast: startTs.forecast,
-      },
-      prepare_phase: {
-        start_block: h.prepareStart,
-        end_block: h.end,
-        block_count: info.prepare_phase_block_length,
-        anchors_cycle: id + 1,
-        start_timestamp: prepTs.timestamp,
-        forecast: prepTs.forecast,
-      },
-      start: { block: h.start, timestamp: startTs.timestamp, forecast: startTs.forecast },
-      end:   { block: h.end,   timestamp: endTs.timestamp,   forecast: endTs.forecast },
-      duration_seconds: startTs.ms != null && endTs.ms != null
-        ? Math.round((endTs.ms - startTs.ms) / 1000)
-        : null,
+      start: pointFor(h.start, startTs),
+      end:   pointFor(h.end,   endTs),
+      prepare: { ...pointFor(h.prepareStart, prepTs), anchors_cycle: id + 1 },
       progress,
     };
   }
@@ -256,12 +271,7 @@
   }
 
   // ---------- export ----------
-  const StacksCycles = {
-    getInfo, getCurrent, getCycle, getBlock,
-    // exposed for advanced consumers
-    cycleHeights, blockPhase, timestampForBlock,
-    MAINNET_FALLBACK,
-  };
+  const StacksCycles = { getInfo, getCurrent, getCycle, getBlock };
   global.StacksCycles = StacksCycles;
   if (typeof module !== 'undefined' && module.exports) module.exports = StacksCycles;
 })(typeof window !== 'undefined' ? window : globalThis);

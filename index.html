@@ -4,9 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Stacks Cycles</title>
-<meta name="description" content="Track Stacks reward cycles. Past, present, forecast — and a tiny JSON API." />
+<meta name="description" content="Track Stacks reward cycles. Past, present, and forecast." />
 <meta property="og:title" content="Stacks Cycles" />
-<meta property="og:description" content="Track Stacks reward cycles. Past, present, forecast — and a tiny JSON API." />
+<meta property="og:description" content="Track Stacks reward cycles. Past, present, and forecast." />
 
 <link rel="preconnect" href="https://api.hiro.so" />
 <link rel="preconnect" href="https://mempool.space" />
@@ -34,12 +34,6 @@
     --ok-soft:      #dcfce7;
     --warn:         #b45309;
     --warn-soft:    #fef3c7;
-
-    /* code block — kept dark in both themes for a terminal feel */
-    --code-bg:      #1c1917;
-    --code-fg:      #f5f5f4;
-    --code-com:     #a8a29e;
-    --code-key:     #fdba74;
 
     --shadow-sm: 0 1px 2px rgba(12,10,9,0.04);
     --shadow:    0 1px 3px rgba(12,10,9,0.06), 0 1px 2px rgba(12,10,9,0.04);
@@ -70,11 +64,6 @@
       --ok-soft:      #052e16;
       --warn:         #fbbf24;
       --warn-soft:    #451a03;
-
-      --code-bg:      #050403;
-      --code-fg:      #e7e5e4;
-      --code-com:     #78716c;
-      --code-key:     #fb923c;
 
       --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
       --shadow:    0 1px 3px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.5);
@@ -413,7 +402,6 @@
     padding: 4px 0;
   }
   .live-jump:hover { color: var(--accent); }
-  .countdowns.viewing-current ~ .live-jump-row { display: none; }
 
   /* ─── section ──────────────────────────────────────────────────────── */
   .section { margin-top: 36px; }
@@ -602,13 +590,7 @@
   .or-jump:hover { color: var(--accent); }
   .or-error { color: #b91c1c; font-size: 13.5px; }
 
-  /* ─── notes / api ──────────────────────────────────────────────────── */
-  .notes-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  @media (max-width: 760px) { .notes-grid { grid-template-columns: 1fr; } }
+  /* ─── notes ────────────────────────────────────────────────────────── */
   .notes-card { padding: 24px 28px; }
   .notes-card h3 {
     margin: 0 0 10px;
@@ -632,18 +614,6 @@
   }
   .notes-card a:hover { text-decoration-color: var(--accent); color: var(--accent); }
   .notes-card .mono { color: var(--text); font-size: 12.5px; }
-
-  pre.api {
-    margin: 10px 0 0;
-    padding: 14px 16px;
-    background: var(--code-bg);
-    color: var(--code-fg);
-    font: 500 12px/1.65 var(--font-mono);
-    overflow-x: auto;
-    border-radius: var(--radius);
-  }
-  pre.api .com { color: var(--code-com); }
-  pre.api .key { color: var(--code-key); }
 
   /* ─── footer ───────────────────────────────────────────────────────── */
   footer.foot {
@@ -741,7 +711,7 @@
         </div>
         <div class="progress-bar">
           <div class="bar-reward"><div class="bar-fill" id="bar-fill" style="width:0%"></div></div>
-          <div class="bar-prepare" id="bar-prepare"></div>
+          <div class="bar-prepare"></div>
         </div>
         <div class="progress-legend">
           <span><span class="swatch reward"></span>Reward phase · 2,000 blocks</span>
@@ -843,6 +813,7 @@
   const $ = (id) => document.getElementById(id);
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  const fmtShortDateTime = (ms) => new Date(ms).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   function relTime(ms) {
     if (ms == null) return '';
@@ -877,13 +848,6 @@
     return `${m}m ${p(s)}s`;
   }
 
-  function fmtDuration(seconds) {
-    if (seconds == null) return '—';
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    return `${d}d ${String(h).padStart(2, '0')}h`;
-  }
-
   async function cyc(id) {
     if (state.cycleCache.has(id)) return state.cycleCache.get(id);
     const p = StacksCycles.getCycle(id);
@@ -908,66 +872,70 @@
     catch (e) { console.error(e); hero.classList.remove('loading'); return; }
     if (gen !== state.renderGen) return;
 
-    const isCurrent = cycle.status === 'current';
-    const isPast    = cycle.status === 'past';
-    const isFuture  = cycle.status === 'future';
+    renderStatus(cycle);
+    renderDates(cycle);
+    renderProgress(cycle);
+    renderAdjacent(c);
 
-    // status pill
-    const pill = $('status-pill');
-    const pillText = $('status-pill-text');
-    pill.className = 'status-pill ' + cycle.status;
-    pillText.textContent = isCurrent ? 'In progress' : isPast ? 'Completed' : 'Upcoming';
+    $('live-jump-row').style.display = (c !== state.info.current_cycle_id) ? '' : 'none';
+    hero.classList.remove('loading');
+  }
 
-    // labels
+  function renderStatus(cycle) {
+    let pillText;
+    switch (cycle.status) {
+      case 'current': pillText = 'In progress'; break;
+      case 'past':    pillText = 'Completed';   break;
+      default:        pillText = 'Upcoming';    break;
+    }
+    $('status-pill').className = 'status-pill ' + cycle.status;
+    $('status-pill-text').textContent = pillText;
+  }
+
+  function renderDates(cycle) {
+    const isPast   = cycle.status === 'past';
+    const isFuture = cycle.status === 'future';
+
     $('d-start-label').innerHTML = isFuture ? 'Begins <span class="badge">forecast</span>' : 'Started';
     $('d-end-label').innerHTML   = isPast ? 'Ended' : 'Ends <span class="badge">forecast</span>';
     $('d-prep-label').innerHTML  = isPast ? 'Prepare phase' : 'Prepare phase <span class="badge">forecast</span>';
 
-    // start
-    const startMs = cycle.start.timestamp ? Date.parse(cycle.start.timestamp) : null;
-    setDate('d-start', startMs, cycle.start.block, cycle.start.forecast);
+    setDate('d-start', cycle.start);
+    setDate('d-end',   cycle.end);
+    setDate('d-prep',  cycle.prepare);
+    $('d-prep-anchor').textContent = cycle.prepare.anchors_cycle;
+  }
 
-    // end
-    const endMs = cycle.end.timestamp ? Date.parse(cycle.end.timestamp) : null;
-    setDate('d-end', endMs, cycle.end.block, cycle.end.forecast);
-
-    // prepare
-    const prepMs = cycle.prepare_phase.start_timestamp ? Date.parse(cycle.prepare_phase.start_timestamp) : null;
-    setDate('d-prep', prepMs, cycle.prepare_phase.start_block, cycle.prepare_phase.forecast);
-    $('d-prep-anchor').textContent = cycle.prepare_phase.anchors_cycle;
-
-    // progress
+  function renderProgress(cycle) {
     const fill = $('bar-fill');
     const progText = $('progress-text');
     const progLabel = $('progress-label');
-    if (isCurrent && cycle.progress) {
+
+    if (cycle.status === 'current' && cycle.progress) {
       const pct = cycle.progress.percent_complete;
-      // The fill is inside the reward portion (95.238% of bar). Convert overall % → reward-relative %.
-      const rewardPct = Math.min(100, (pct / (cycle.reward_phase.block_count / cycle.total_blocks * 100)) * 100);
-      fill.style.width = `${Math.min(100, rewardPct).toFixed(2)}%`;
-      progText.textContent = `${fmt.format(cycle.progress.blocks_elapsed)} / ${fmt.format(cycle.total_blocks)} blocks · ${pct.toFixed(1)}%`;
+      // The fill div lives inside the reward portion of the bar. Scale the
+      // overall percentage up so 100% reward-complete fills that portion.
+      const rewardPct = Math.min(100, pct * state.info.reward_cycle_length / state.info.reward_phase_block_length);
+      fill.style.width = `${rewardPct.toFixed(2)}%`;
+      progText.textContent = `${fmt.format(cycle.progress.blocks_elapsed)} / ${fmt.format(state.info.reward_cycle_length)} blocks · ${pct.toFixed(1)}%`;
       progLabel.textContent = cycle.progress.in_prepare_phase ? 'In prepare phase' : 'Cycle progress';
-    } else if (isPast) {
+      return;
+    }
+    if (cycle.status === 'past') {
       fill.style.width = '100%';
       progText.textContent = '100% — complete';
       progLabel.textContent = 'Cycle progress';
-    } else {
-      fill.style.width = '0%';
-      const ahead = cycle.start.block - state.info.current_burn_block_height;
-      progText.textContent = `starts in ${fmt.format(ahead)} BTC blocks`;
-      progLabel.textContent = 'Upcoming';
+      return;
     }
-
-    // adjacent table
-    renderAdjacent(c);
-
-    // live jump
-    $('live-jump-row').style.display = (c !== state.info.current_cycle_id) ? '' : 'none';
-
-    hero.classList.remove('loading');
+    // future
+    fill.style.width = '0%';
+    const ahead = cycle.start.block - state.info.current_burn_block_height;
+    progText.textContent = `starts in ${fmt.format(ahead)} BTC blocks`;
+    progLabel.textContent = 'Upcoming';
   }
 
-  function setDate(prefix, ms, block, forecast) {
+  function setDate(prefix, ev) {
+    const ms = ev.timestamp ? Date.parse(ev.timestamp) : null;
     const d = $(prefix + '-date');
     const s = $(prefix + '-sub');
     const b = $(prefix + '-block');
@@ -976,9 +944,9 @@
       d.classList.remove('forecast'); return;
     }
     d.textContent = fmtDate(ms);
-    d.classList.toggle('forecast', !!forecast);
+    d.classList.toggle('forecast', !!ev.forecast);
     s.textContent = fmtTime(ms) + ' · ' + relTime(ms);
-    b.textContent = fmt.format(block);
+    b.textContent = fmt.format(ev.block);
   }
 
   // ─── adjacent ────────────────────────────────────────────────────────
@@ -993,9 +961,11 @@
     const body = $('adj-body');
 
     body.innerHTML = ids.map(i => {
-      const status = i < cur ? 'past' : i > cur ? 'future' : 'current';
       const cls = [i === center ? 'viewed' : '', i === cur ? 'current' : ''].filter(Boolean).join(' ');
-      const statusText = status === 'past' ? 'completed' : status === 'current' ? 'in progress' : 'upcoming';
+      let statusText;
+      if (i < cur)      statusText = 'completed';
+      else if (i > cur) statusText = 'upcoming';
+      else              statusText = 'in progress';
       return `<tr class="${cls}" data-cycle="${i}">
         <td class="num"><span class="marker"></span>№ ${i}</td>
         <td class="date" id="adj-${i}-date">—</td>
@@ -1031,7 +1001,7 @@
   async function loadCountdownTargets() {
     const cur = await cyc(state.info.current_cycle_id);
     state.currentEndMs = cur.end.timestamp ? Date.parse(cur.end.timestamp) : null;
-    state.currentPrepMs = cur.prepare_phase.start_timestamp ? Date.parse(cur.prepare_phase.start_timestamp) : null;
+    state.currentPrepMs = cur.prepare.timestamp ? Date.parse(cur.prepare.timestamp) : null;
     $('cd-cycle-label').innerHTML = `Cycle <span class="mono">${state.info.current_cycle_id}</span> ends in`;
     if (state.cdTimer) clearInterval(state.cdTimer);
     tickCountdown();
@@ -1041,14 +1011,14 @@
   function tickCountdown() {
     if (state.currentEndMs != null) {
       $('cd-cycle').textContent = fmtCountdown(state.currentEndMs - Date.now(), 'transitioning…');
-      $('cd-cycle-extra').textContent = new Date(state.currentEndMs).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      $('cd-cycle-extra').textContent = fmtShortDateTime(state.currentEndMs);
     }
     if (state.currentPrepMs != null) {
       const ms = state.currentPrepMs - Date.now();
       if (ms > 0) {
         $('cd-prep-label').innerHTML = 'Prepare phase in';
         $('cd-prep').textContent = fmtCountdown(ms);
-        $('cd-prep-extra').textContent = new Date(state.currentPrepMs).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        $('cd-prep-extra').textContent = fmtShortDateTime(state.currentPrepMs);
       } else {
         $('cd-prep-label').innerHTML = 'In prepare phase';
         $('cd-prep').textContent = fmtCountdown(-ms) + ' elapsed';
@@ -1058,13 +1028,22 @@
   }
 
   // ─── oracle ──────────────────────────────────────────────────────────
+  const ORACLE_PROMPT = 'Enter any Bitcoin block height to see its date and which Stacks cycle it falls in.';
   let oracleDebounce = null;
+
+  function blockDiffLabel(h) {
+    const diff = h - state.info.current_burn_block_height;
+    if (diff === 0) return 'current tip';
+    if (diff > 0)   return `${fmt.format(diff)} blocks ahead`;
+    return `${fmt.format(-diff)} blocks ago`;
+  }
+
   async function runOracle(value) {
     const result = $('oracle-result');
     const v = (value ?? '').toString().trim();
     if (v === '') {
       result.classList.add('empty');
-      result.innerHTML = 'Enter any Bitcoin block height to see its date and which Stacks cycle it falls in.';
+      result.textContent = ORACLE_PROMPT;
       return;
     }
     const h = Math.floor(Number(v));
@@ -1087,14 +1066,11 @@
         return;
       }
       const ms = res.timestamp ? Date.parse(res.timestamp) : null;
-      const diff = h - state.info.current_burn_block_height;
-      const blkLine = diff === 0 ? 'current tip'
-        : diff > 0 ? `${fmt.format(diff)} blocks ahead`
-        : `${fmt.format(-diff)} blocks ago`;
-      const phaseTag = res.phase === 'prepare'
+      const isPrepare = res.phase === 'prepare';
+      const phaseTag = isPrepare
         ? `<span class="or-tag prepare">cycle ${res.cycle_id} · prepare phase</span>`
         : `<span class="or-tag reward">cycle ${res.cycle_id} · reward phase</span>`;
-      const phaseSub = res.phase === 'prepare'
+      const phaseSub = isPrepare
         ? `anchors cycle ${res.anchors_cycle}`
         : `block ${fmt.format(res.block_in_cycle)} of ${fmt.format(state.info.reward_cycle_length)}`;
       const dateLine = ms != null
@@ -1103,7 +1079,7 @@
         : `<div class="or-date">—</div>`;
       result.innerHTML = `
         <div class="or-result">
-          <div class="or-block-line">Bitcoin block · ${blkLine}</div>
+          <div class="or-block-line">Bitcoin block · ${blockDiffLabel(h)}</div>
           <div class="or-block-num">${fmt.format(h)}</div>
           ${dateLine}
           <div class="or-tags">
@@ -1178,11 +1154,6 @@
       : 'Partial data';
 
     $('rate-readout').innerHTML = `Live block rate: <span class="mono">${minPerBlock} min/block</span> — ${i.avg_block_source}.`;
-
-    const base = location.href.replace(/[^/]*$/, '');
-    ['api-base','api-base-2','api-base-3','api-base-4'].forEach(id => {
-      const el = $(id); if (el) el.textContent = base;
-    });
   }
 
   // ─── boot ────────────────────────────────────────────────────────────
