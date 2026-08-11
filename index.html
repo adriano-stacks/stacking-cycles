@@ -81,7 +81,7 @@
         </div>
       </div>
       <div class="phase-cell">
-        <div class="kicker" id="end-kicker">Cycle ends</div>
+        <div class="kicker" id="end-kicker">Next cycle reward phase starts</div>
         <div class="phase-date" id="end-date">—</div>
         <div class="phase-sub" id="end-sub"></div>
         <div class="phase-foot">
@@ -230,7 +230,7 @@
       state.endMs = endMs; state.prepMs = prepMs; state.inPrepare = inPrep;
       $('prep-kicker').textContent = inPrep ? 'In prepare phase' : 'Prepare phase begins · forecast';
       $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · anchors cycle ${anchors}` : '';
-      $('end-kicker').textContent = 'Cycle ends · forecast';
+      $('end-kicker').textContent = 'Next cycle reward phase starts · forecast';
       $('end-sub').textContent = endMs != null ? fmtTime(endMs) : '';
       $('prep-cd').style.display = prepMs != null ? '' : 'none';
       $('end-cd').style.display = endMs != null ? '' : 'none';
@@ -258,7 +258,7 @@
       $('status-pill-text').textContent = 'Upcoming';
       $('prep-kicker').textContent = 'Prepare phase begins · forecast';
       $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · ${relTime(prepMs)} · anchors cycle ${anchors}` : '';
-      $('end-kicker').textContent = 'Ends · forecast';
+      $('end-kicker').textContent = 'Next cycle reward phase starts · forecast';
       $('end-sub').textContent = endMs != null ? `${fmtTime(endMs)} · ${relTime(endMs)}` : '';
       $('prep-cd').style.display = 'none';
       $('end-cd').style.display = 'none';
