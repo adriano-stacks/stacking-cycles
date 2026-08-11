@@ -10,50 +10,55 @@
 
 <link rel="preconnect" href="https://api.hiro.so" />
 <link rel="preconnect" href="https://mempool.space" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="ds/tokens/tokens.css" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  (function () {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => { document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light'; };
+    apply();
+    mq.addEventListener('change', apply);
+  })();
+</script>
 </head>
 <body>
 
-<div class="page">
+<!-- ─── header ───────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="brand">
+    <a href="index.html">
+      <span class="brand-mark"><img src="ds/assets/stx-glyph.svg" alt="Stacks" /></span>
+      <span class="brand-name">Stacks Cycles</span>
+    </a>
+  </div>
+  <div class="topbar-meta">
+    <span class="status-dot" id="status-dot"></span>
+    <span class="status-text" id="status-text">connecting…</span>
+  </div>
+</header>
 
-  <!-- ─── header ─────────────────────────────────────────────────────── -->
-  <header class="topbar">
-    <div class="brand">
-      <a href="index.html">
-        <span class="brand-mark"></span>
-        <span>Stacks Cycles</span>
-      </a>
-    </div>
-    <div class="topbar-meta">
-      <span class="status-dot live" id="status-dot"></span>
-      <span id="status-text">connecting…</span>
-    </div>
-  </header>
+<main class="page">
 
-  <!-- ─── nav ────────────────────────────────────────────────────────── -->
+  <!-- ─── nav ──────────────────────────────────────────────────────── -->
   <nav class="navbar">
     <div class="nav-cluster">
       <a class="btn" href="index.html">← Cycles</a>
     </div>
   </nav>
 
-  <!-- ─── oracle ─────────────────────────────────────────────────────── -->
+  <!-- ─── forecast ─────────────────────────────────────────────────── -->
   <section class="section" style="margin-top:0">
     <div class="section-head">
       <h2>Forecast a block</h2>
       <span class="hint">Past or future</span>
     </div>
-    <div class="card oracle-card">
+    <div class="oracle-card">
       <div class="oracle-input-side">
         <label class="oracle-label" for="oracle-input">Bitcoin block height</label>
         <input class="oracle-input" id="oracle-input" type="number" min="0" inputmode="numeric" placeholder="e.g. 1000000" />
         <div class="oracle-tips">
           <button class="oracle-tip" data-block="1000000">1,000,000</button>
           <button class="oracle-tip" data-block="1050000">1,050,000</button>
-          <button class="oracle-tip" data-block="1100000">1,100,000</button>
           <button class="oracle-tip" data-block="666050">PoX origin</button>
         </div>
       </div>
@@ -63,24 +68,15 @@
     </div>
   </section>
 
-  <!-- ─── notes ──────────────────────────────────────────────────────── -->
-  <section class="section">
-    <div class="section-head">
-      <h2>Method</h2>
-    </div>
-    <div class="card notes-card">
-      <p>Each Stacks reward cycle is <span class="mono">2,100</span> Bitcoin blocks — a <span class="mono">2,000-block</span> reward phase followed by a <span class="mono">100-block</span> prepare phase. Cycle 0 begins at block <span class="mono">666,050</span>.</p>
-      <p>Past dates are confirmed Bitcoin block timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>. Forecasts use the live block interval of the current difficulty epoch.</p>
-      <p id="rate-readout">—</p>
-    </div>
-  </section>
+  <!-- ─── footnote ─────────────────────────────────────────────────── -->
+  <p class="footnote">Each reward cycle is 2,100 Bitcoin blocks — a 2,000-block reward phase followed by a 100-block prepare phase. Cycle 0 begins at block 666,050. Past dates are confirmed timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>; forecasts use the live block interval of the current difficulty epoch<span id="rate-note"></span>.</p>
 
   <footer class="foot">
     <span>Stacks Cycles</span>
     <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro</a> &amp; <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a></span>
   </footer>
 
-</div>
+</main>
 
 <script src="stacks-cycles.js"></script>
 <script>
@@ -149,32 +145,29 @@
       if (res.valid === false) {
         result.innerHTML = `
           <div class="or-result">
-            <div class="or-block-line">Bitcoin block</div>
+            <div class="or-kicker">Bitcoin block</div>
             <div class="or-block-num">${fmt.format(h)}</div>
-            <div class="or-tags"><span class="or-tag invalid">${res.message}</span></div>
+            <div class="or-error">${res.message}</div>
           </div>`;
         return;
       }
       const ms = res.timestamp ? Date.parse(res.timestamp) : null;
       const isPrepare = res.phase === 'prepare';
-      const phaseTag = isPrepare
-        ? `<span class="or-tag prepare">cycle ${res.cycle_id} · prepare phase</span>`
-        : `<span class="or-tag reward">cycle ${res.cycle_id} · reward phase</span>`;
-      const phaseSub = isPrepare
+      const tagSub = isPrepare
         ? `anchors cycle ${res.anchors_cycle}`
         : `block ${fmt.format(res.block_in_cycle)} of ${fmt.format(info.reward_cycle_length)}`;
       const dateLine = ms != null
-        ? `<div class="or-date ${res.forecast ? 'forecast' : ''}">${fmtDate(ms)}</div>
-           <div class="or-sub">${fmtTime(ms)} · ${relTime(ms)}${res.forecast ? ' · forecast' : ' · confirmed'}</div>`
+        ? `<div class="or-date">${fmtDate(ms)}</div>
+           <div class="or-sub">${fmtTime(ms)} · ${relTime(ms)} · ${res.forecast ? 'forecast' : 'confirmed'}</div>`
         : `<div class="or-date">—</div>`;
       result.innerHTML = `
         <div class="or-result">
-          <div class="or-block-line">Bitcoin block · ${blockDiffLabel(h)}</div>
+          <div class="or-kicker">Bitcoin block · ${blockDiffLabel(h)}</div>
           <div class="or-block-num">${fmt.format(h)}</div>
           ${dateLine}
           <div class="or-tags">
-            ${phaseTag}
-            <span class="or-tag-sub">${phaseSub}</span>
+            <span class="or-tag ${isPrepare ? 'prepare' : ''}">Cycle ${res.cycle_id} · ${isPrepare ? 'prepare' : 'reward'} phase</span>
+            <span class="or-tag-sub">${tagSub}</span>
             <a class="or-jump" href="index.html#cycle=${res.cycle_id}">View cycle ${res.cycle_id} →</a>
           </div>
         </div>`;
@@ -188,7 +181,7 @@
     $('oracle-input').addEventListener('input', (e) => {
       clearTimeout(oracleDebounce);
       const v = e.target.value;
-      oracleDebounce = setTimeout(() => runOracle(v), 220);
+      oracleDebounce = setTimeout(() => runOracle(v), 250);
     });
     document.querySelectorAll('.oracle-tip[data-block]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -200,15 +193,12 @@
   }
 
   function updateHeader() {
-    const ok = info.sources.pox === 'hiro' && info.sources.btc === 'mempool.space';
-    const dot = $('status-dot');
-    dot.className = 'status-dot ' + (ok ? 'live' : 'warn');
-    const minPerBlock = (info.avg_block_seconds / 60).toFixed(2);
-    $('status-text').innerHTML = ok
-      ? `Mainnet · BTC tip <span class="mono">${fmt.format(info.btc_tip_height)}</span> · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`
-      : 'Partial data';
-
-    $('rate-readout').innerHTML = `Live block rate: <a href="https://mempool.space" target="_blank" rel="noopener"><span class="mono">${minPerBlock} min/block</span></a> — ${info.avg_block_source}.`;
+    $('status-dot').classList.add('live');
+    const minPerBlock = (info.avg_block_seconds / 60).toFixed(1);
+    $('status-text').innerHTML =
+      `Mainnet · BTC tip ${fmt.format(info.btc_tip_height)} · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`;
+    // NBSP + word-joiners keep the parenthetical on one line in every engine.
+    $('rate-note').textContent = ` (currently\u00A0${minPerBlock}\u00A0min\u2060/\u2060block)`;
   }
 
   // ─── boot ────────────────────────────────────────────────────────────
@@ -224,8 +214,7 @@
       }
     } catch (err) {
       console.error(err);
-      const dot = $('status-dot');
-      dot.className = 'status-dot err';
+      $('status-dot').className = 'status-dot err';
       $('status-text').textContent = 'offline';
     }
   })();

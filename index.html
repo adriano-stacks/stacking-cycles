@@ -10,133 +10,119 @@
 
 <link rel="preconnect" href="https://api.hiro.so" />
 <link rel="preconnect" href="https://mempool.space" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="ds/tokens/tokens.css" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  (function () {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => { document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light'; };
+    apply();
+    mq.addEventListener('change', apply);
+  })();
+</script>
 </head>
 <body>
 
-<div class="page">
+<!-- ─── header ───────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"><img src="ds/assets/stx-glyph.svg" alt="Stacks" /></span>
+    <span class="brand-name">Stacks Cycles</span>
+  </div>
+  <div class="topbar-meta">
+    <span class="status-dot" id="status-dot"></span>
+    <span class="status-text" id="status-text">connecting…</span>
+  </div>
+</header>
 
-  <!-- ─── header ─────────────────────────────────────────────────────── -->
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark"></span>
-      <span>Stacks Cycles</span>
-    </div>
-    <div class="topbar-meta">
-      <span class="status-dot live" id="status-dot"></span>
-      <span id="status-text">connecting…</span>
-    </div>
-  </header>
+<main class="page">
 
-  <!-- ─── nav ────────────────────────────────────────────────────────── -->
+  <!-- ─── nav ──────────────────────────────────────────────────────── -->
   <nav class="navbar">
     <div class="nav-cluster">
       <button class="btn icon" id="prev" aria-label="Previous cycle" title="Previous (←)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
-      <button class="btn primary" id="today" title="Jump to current (T)">Now</button>
+      <input class="cycle-input" id="cycle-input" aria-label="Cycle number" type="number" min="0" inputmode="numeric" />
       <button class="btn icon" id="next" aria-label="Next cycle" title="Next (→)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
     </div>
     <div class="nav-cluster">
-      <div class="cycle-input-wrap">
-        <label for="cycle-input">Cycle</label>
-        <input class="cycle-input" id="cycle-input" type="number" min="0" inputmode="numeric" />
-      </div>
+      <button class="btn primary" id="jump-current" title="Jump to current (T)" style="display:none">Jump to current cycle</button>
       <a class="btn" href="forecast.html">Forecast a block →</a>
     </div>
   </nav>
 
-  <!-- ─── hero ───────────────────────────────────────────────────────── -->
-  <section class="card hero loading" id="hero">
-    <div class="card-body">
-      <div class="hero-head">
+  <!-- ─── hero ─────────────────────────────────────────────────────── -->
+  <section class="hero loading" id="hero">
+    <div class="hero-head">
+      <div>
+        <div class="kicker">Reward cycle</div>
+        <h1 class="cycle-num" id="cycle-number">—</h1>
+      </div>
+      <span class="status-pill" id="status-pill">
+        <span class="pill-dot"></span>
+        <span id="status-pill-text">—</span>
+      </span>
+    </div>
+
+    <div class="phase-grid">
+      <div class="phase-cell">
+        <div class="kicker" id="prep-kicker">Prepare phase</div>
+        <div class="phase-date" id="prep-date">—</div>
+        <div class="phase-sub" id="prep-sub"></div>
+        <div class="phase-foot">
+          <span class="cd-value accent" id="prep-cd" style="display:none">—</span>
+          <span class="block-badge">
+            <img src="ds/assets/btc.svg" alt="" />
+            <span id="prep-block">—</span>
+          </span>
+        </div>
+      </div>
+      <div class="phase-cell">
+        <div class="kicker" id="end-kicker">Cycle ends</div>
+        <div class="phase-date" id="end-date">—</div>
+        <div class="phase-sub" id="end-sub"></div>
+        <div class="phase-foot">
+          <span class="cd-value" id="end-cd" style="display:none">—</span>
+          <span class="block-badge">
+            <img src="ds/assets/btc.svg" alt="" />
+            <span id="end-block">—</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="progress-bar">
+        <div class="zone-prepare"></div>
+        <div class="bar-fill" id="bar-fill"></div>
+        <div class="zone-divider"></div>
+      </div>
+      <div class="progress-foot">
         <div>
-          <div class="eyebrow">Reward cycle</div>
-          <h1 class="cycle-num"><span class="hash">№</span><span id="cycle-number">—</span></h1>
+          <div class="start-label" id="start-label">Started</div>
+          <div class="start-date" id="start-date">—</div>
+          <span class="block-badge on-card start-badge">
+            <img src="ds/assets/btc.svg" alt="" />
+            <span id="start-block">—</span>
+          </span>
         </div>
-        <span class="status-pill current" id="status-pill">
-          <span class="pill-dot"></span>
-          <span id="status-pill-text">—</span>
-        </span>
-      </div>
-
-      <div class="date-grid">
-        <div class="date-item">
-          <div class="date-label" id="d-start-label">Started</div>
-          <div class="date-value" id="d-start-date">—</div>
-          <div class="date-sub" id="d-start-sub">—</div>
-          <div class="date-block">block <strong id="d-start-block">—</strong></div>
-        </div>
-        <div class="date-item">
-          <div class="date-label" id="d-prep-label">Prepare phase</div>
-          <div class="date-value" id="d-prep-date">—</div>
-          <div class="date-sub" id="d-prep-sub">—</div>
-          <div class="date-block">block <strong id="d-prep-block">—</strong> · anchors cycle <span id="d-prep-anchor">—</span></div>
-        </div>
-        <div class="date-item">
-          <div class="date-label" id="d-end-label">Ends <span class="badge">forecast</span></div>
-          <div class="date-value" id="d-end-date">—</div>
-          <div class="date-sub" id="d-end-sub">—</div>
-          <div class="date-block">block <strong id="d-end-block">—</strong></div>
-        </div>
-      </div>
-
-      <div class="progress-section">
-        <div class="progress-head">
-          <span id="progress-label">Cycle progress</span>
-          <span><strong class="mono" id="progress-text">—</strong></span>
-        </div>
-        <div class="progress-bar">
-          <div class="bar-reward"><div class="bar-fill" id="bar-fill" style="width:0%"></div></div>
-          <div class="bar-prepare"></div>
-        </div>
-        <div class="progress-legend">
-          <span><span class="swatch reward"></span>Reward phase · 2,000 blocks</span>
-          <span><span class="swatch prepare"></span>Prepare phase · 100 blocks</span>
-        </div>
-      </div>
-
-      <div class="countdowns" id="countdowns">
-        <div class="cd">
-          <div class="cd-label" id="cd-cycle-label">Current cycle ends in</div>
-          <div class="cd-value warn mono" id="cd-cycle">—</div>
-          <div class="cd-extra" id="cd-cycle-extra">—</div>
-        </div>
-        <div class="cd">
-          <div class="cd-label" id="cd-prep-label">Prepare phase in</div>
-          <div class="cd-value mono" id="cd-prep">—</div>
-          <div class="cd-extra" id="cd-prep-extra">—</div>
-        </div>
-      </div>
-      <div class="live-jump-row" id="live-jump-row" style="display:none">
-        <button class="live-jump" id="live-jump">← back to current cycle</button>
+        <div class="progress-right" id="progress-right"></div>
       </div>
     </div>
   </section>
 
-  <!-- ─── notes ──────────────────────────────────────────────────────── -->
-  <section class="section">
-    <div class="section-head">
-      <h2>Method</h2>
-    </div>
-    <div class="card notes-card">
-      <p>Each Stacks reward cycle is <span class="mono">2,100</span> Bitcoin blocks — a <span class="mono">2,000-block</span> reward phase followed by a <span class="mono">100-block</span> prepare phase. Cycle 0 begins at block <span class="mono">666,050</span>.</p>
-      <p>Past dates are confirmed Bitcoin block timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>. Forecasts use the live block interval of the current difficulty epoch.</p>
-      <p id="rate-readout">—</p>
-    </div>
-  </section>
+  <!-- ─── footnote ─────────────────────────────────────────────────── -->
+  <p class="footnote">Each reward cycle is 2,100 Bitcoin blocks — a 2,000-block reward phase followed by a 100-block prepare phase. Cycle 0 begins at block 666,050. Past dates are confirmed timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>; forecasts use the live block interval of the current difficulty epoch<span id="rate-note"></span>.</p>
 
   <footer class="foot">
     <span>Stacks Cycles</span>
     <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro</a> &amp; <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a></span>
   </footer>
 
-</div>
+</main>
 
 <script src="stacks-cycles.js"></script>
 <script>
@@ -148,9 +134,10 @@
     viewedCycle: null,
     cycleCache: new Map(),
     renderGen: 0,
-    currentEndMs: null,
-    currentPrepMs: null,
-    cdTimer: null,
+    // Countdown targets; non-null only while viewing the current cycle.
+    endMs: null,
+    prepMs: null,
+    inPrepare: false,
   };
 
   // ─── formatters ──────────────────────────────────────────────────────
@@ -158,7 +145,6 @@
   const $ = (id) => document.getElementById(id);
   const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
-  const fmtShortDateTime = (ms) => new Date(ms).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   function relTime(ms) {
     if (ms == null) return '';
@@ -180,9 +166,9 @@
     return diff < 0 ? `${v} ${u}${plural} ago` : `in ${v} ${u}${plural}`;
   }
 
-  function fmtCountdown(ms, zero = 'now') {
+  function fmtCountdown(ms) {
     if (ms == null) return '—';
-    if (ms <= 0) return zero;
+    if (ms <= 0) return 'transitioning…';
     const d = Math.floor(ms / 86_400_000);
     const h = Math.floor((ms % 86_400_000) / 3_600_000);
     const m = Math.floor((ms % 3_600_000) / 60_000);
@@ -192,6 +178,8 @@
     if (h > 0) return `${h}h ${p(m)}m ${p(s)}s`;
     return `${m}m ${p(s)}s`;
   }
+
+  const eventMs = (ev) => ev && ev.timestamp ? Date.parse(ev.timestamp) : null;
 
   async function cyc(id) {
     if (state.cycleCache.has(id)) return state.cycleCache.get(id);
@@ -211,115 +199,86 @@
     $('cycle-number').textContent = c;
     $('cycle-input').value = c;
     $('prev').disabled = c <= 0;
+    $('jump-current').style.display = (c !== state.info.current_cycle_id) ? '' : 'none';
 
     let cycle;
     try { cycle = await cyc(c); }
     catch (e) { console.error(e); hero.classList.remove('loading'); return; }
     if (gen !== state.renderGen) return;
 
-    renderStatus(cycle);
-    renderDates(cycle);
-    renderProgress(cycle);
+    const info = state.info;
+    const startMs = eventMs(cycle.start);
+    const endMs = eventMs(cycle.end);
+    const prepMs = eventMs(cycle.prepare);
 
-    $('live-jump-row').style.display = (c !== state.info.current_cycle_id) ? '' : 'none';
+    $('prep-date').textContent = prepMs != null ? fmtDate(prepMs) : '—';
+    $('end-date').textContent = endMs != null ? fmtDate(endMs) : '—';
+    $('start-date').textContent = startMs != null ? fmtDate(startMs) : '—';
+    $('prep-block').textContent = fmt.format(cycle.prepare.block);
+    $('end-block').textContent = fmt.format(cycle.end.block);
+    $('start-block').textContent = fmt.format(cycle.start.block);
+
+    const pill = $('status-pill');
+    const anchors = cycle.prepare.anchors_cycle;
+
+    state.endMs = null; state.prepMs = null; state.inPrepare = false;
+
+    if (cycle.status === 'current') {
+      pill.className = 'status-pill current';
+      $('status-pill-text').textContent = 'In progress';
+      const inPrep = !!(cycle.progress && cycle.progress.in_prepare_phase);
+      state.endMs = endMs; state.prepMs = prepMs; state.inPrepare = inPrep;
+      $('prep-kicker').textContent = inPrep ? 'In prepare phase' : 'Prepare phase begins · forecast';
+      $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · anchors cycle ${anchors}` : '';
+      $('end-kicker').textContent = 'Cycle ends · forecast';
+      $('end-sub').textContent = endMs != null ? fmtTime(endMs) : '';
+      $('prep-cd').style.display = prepMs != null ? '' : 'none';
+      $('end-cd').style.display = endMs != null ? '' : 'none';
+      tick();
+      $('start-label').textContent = 'Started';
+      if (cycle.progress) {
+        const pct = cycle.progress.percent_complete;
+        $('bar-fill').style.width = `${pct.toFixed(2)}%`;
+        $('progress-right').textContent = `${fmt.format(cycle.progress.blocks_elapsed)} / ${fmt.format(info.reward_cycle_length)} blocks · ${pct.toFixed(1)}%`;
+      }
+    } else if (cycle.status === 'past') {
+      pill.className = 'status-pill past';
+      $('status-pill-text').textContent = 'Completed';
+      $('prep-kicker').textContent = 'Prepare phase began';
+      $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · anchored cycle ${anchors}` : '';
+      $('end-kicker').textContent = 'Ended';
+      $('end-sub').textContent = endMs != null ? `${fmtTime(endMs)} · ${relTime(endMs)}` : '';
+      $('prep-cd').style.display = 'none';
+      $('end-cd').style.display = 'none';
+      $('start-label').textContent = 'Started';
+      $('bar-fill').style.width = '100%';
+      $('progress-right').textContent = `${fmt.format(info.reward_cycle_length)} / ${fmt.format(info.reward_cycle_length)} blocks · complete`;
+    } else {
+      pill.className = 'status-pill future';
+      $('status-pill-text').textContent = 'Upcoming';
+      $('prep-kicker').textContent = 'Prepare phase begins · forecast';
+      $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · ${relTime(prepMs)} · anchors cycle ${anchors}` : '';
+      $('end-kicker').textContent = 'Ends · forecast';
+      $('end-sub').textContent = endMs != null ? `${fmtTime(endMs)} · ${relTime(endMs)}` : '';
+      $('prep-cd').style.display = 'none';
+      $('end-cd').style.display = 'none';
+      $('start-label').textContent = 'Begins';
+      $('bar-fill').style.width = '0%';
+      const ahead = cycle.start.block - info.current_burn_block_height;
+      $('progress-right').textContent = ahead > 0 ? `starts in ${fmt.format(ahead)} BTC blocks` : '';
+    }
+
     hero.classList.remove('loading');
   }
 
-  function renderStatus(cycle) {
-    let pillText;
-    switch (cycle.status) {
-      case 'current': pillText = 'In progress'; break;
-      case 'past':    pillText = 'Completed';   break;
-      default:        pillText = 'Upcoming';    break;
-    }
-    $('status-pill').className = 'status-pill ' + cycle.status;
-    $('status-pill-text').textContent = pillText;
-  }
-
-  function renderDates(cycle) {
-    const isPast   = cycle.status === 'past';
-    const isFuture = cycle.status === 'future';
-
-    $('d-start-label').innerHTML = isFuture ? 'Begins <span class="badge">forecast</span>' : 'Started';
-    $('d-end-label').innerHTML   = isPast ? 'Ended' : 'Ends <span class="badge">forecast</span>';
-    $('d-prep-label').innerHTML  = isPast ? 'Prepare phase' : 'Prepare phase <span class="badge">forecast</span>';
-
-    setDate('d-start', cycle.start);
-    setDate('d-end',   cycle.end);
-    setDate('d-prep',  cycle.prepare);
-    $('d-prep-anchor').textContent = cycle.prepare.anchors_cycle;
-  }
-
-  function renderProgress(cycle) {
-    const fill = $('bar-fill');
-    const progText = $('progress-text');
-    const progLabel = $('progress-label');
-
-    if (cycle.status === 'current' && cycle.progress) {
-      const pct = cycle.progress.percent_complete;
-      // The fill div lives inside the reward portion of the bar. Scale the
-      // overall percentage up so 100% reward-complete fills that portion.
-      const rewardPct = Math.min(100, pct * state.info.reward_cycle_length / state.info.reward_phase_block_length);
-      fill.style.width = `${rewardPct.toFixed(2)}%`;
-      progText.textContent = `${fmt.format(cycle.progress.blocks_elapsed)} / ${fmt.format(state.info.reward_cycle_length)} blocks · ${pct.toFixed(1)}%`;
-      progLabel.textContent = cycle.progress.in_prepare_phase ? 'In prepare phase' : 'Cycle progress';
-      return;
-    }
-    if (cycle.status === 'past') {
-      fill.style.width = '100%';
-      progText.textContent = '100% — complete';
-      progLabel.textContent = 'Cycle progress';
-      return;
-    }
-    // future
-    fill.style.width = '0%';
-    const ahead = cycle.start.block - state.info.current_burn_block_height;
-    progText.textContent = `starts in ${fmt.format(ahead)} BTC blocks`;
-    progLabel.textContent = 'Upcoming';
-  }
-
-  function setDate(prefix, ev) {
-    const ms = ev.timestamp ? Date.parse(ev.timestamp) : null;
-    const d = $(prefix + '-date');
-    const s = $(prefix + '-sub');
-    const b = $(prefix + '-block');
-    if (ms == null) {
-      d.textContent = '—'; s.textContent = ''; b.textContent = '—';
-      d.classList.remove('forecast'); return;
-    }
-    d.textContent = fmtDate(ms);
-    d.classList.toggle('forecast', !!ev.forecast);
-    s.textContent = fmtTime(ms) + ' · ' + relTime(ms);
-    b.textContent = fmt.format(ev.block);
-  }
-
   // ─── countdowns ──────────────────────────────────────────────────────
-  async function loadCountdownTargets() {
-    const cur = await cyc(state.info.current_cycle_id);
-    state.currentEndMs = cur.end.timestamp ? Date.parse(cur.end.timestamp) : null;
-    state.currentPrepMs = cur.prepare.timestamp ? Date.parse(cur.prepare.timestamp) : null;
-    $('cd-cycle-label').innerHTML = `Cycle <span class="mono">${state.info.current_cycle_id}</span> ends in`;
-    if (state.cdTimer) clearInterval(state.cdTimer);
-    tickCountdown();
-    state.cdTimer = setInterval(tickCountdown, 1000);
-  }
-
-  function tickCountdown() {
-    if (state.currentEndMs != null) {
-      $('cd-cycle').textContent = fmtCountdown(state.currentEndMs - Date.now(), 'transitioning…');
-      $('cd-cycle-extra').textContent = fmtShortDateTime(state.currentEndMs);
-    }
-    if (state.currentPrepMs != null) {
-      const ms = state.currentPrepMs - Date.now();
-      if (ms > 0) {
-        $('cd-prep-label').innerHTML = 'Prepare phase in';
-        $('cd-prep').textContent = fmtCountdown(ms);
-        $('cd-prep-extra').textContent = fmtShortDateTime(state.currentPrepMs);
-      } else {
-        $('cd-prep-label').innerHTML = 'In prepare phase';
-        $('cd-prep').textContent = fmtCountdown(-ms) + ' elapsed';
-        $('cd-prep-extra').textContent = 'anchoring next cycle';
-      }
+  function tick() {
+    const now = Date.now();
+    if (state.endMs != null) $('end-cd').textContent = fmtCountdown(state.endMs - now);
+    if (state.prepMs != null) {
+      $('prep-cd').textContent = state.inPrepare
+        ? fmtCountdown(now - state.prepMs) + ' elapsed'
+        : fmtCountdown(state.prepMs - now);
     }
   }
 
@@ -339,12 +298,13 @@
   function wireEvents() {
     $('prev').addEventListener('click', () => setViewedCycle(state.viewedCycle - 1));
     $('next').addEventListener('click', () => setViewedCycle(state.viewedCycle + 1));
-    $('today').addEventListener('click', () => setViewedCycle(state.info.current_cycle_id));
-    $('live-jump').addEventListener('click', () => setViewedCycle(state.info.current_cycle_id));
+    $('jump-current').addEventListener('click', () => setViewedCycle(state.info.current_cycle_id));
     $('cycle-input').addEventListener('change', (e) => {
       const v = parseInt(e.target.value, 10);
       if (!Number.isNaN(v)) setViewedCycle(v);
+      else e.target.value = state.viewedCycle;
     });
+    $('cycle-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;
@@ -360,15 +320,12 @@
 
   function updateHeader() {
     const i = state.info;
-    const ok = i.sources.pox === 'hiro' && i.sources.btc === 'mempool.space';
-    const dot = $('status-dot');
-    dot.className = 'status-dot ' + (ok ? 'live' : 'warn');
-    const minPerBlock = (i.avg_block_seconds / 60).toFixed(2);
-    $('status-text').innerHTML = ok
-      ? `Mainnet · BTC tip <span class="mono">${fmt.format(i.btc_tip_height)}</span> · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`
-      : 'Partial data';
-
-    $('rate-readout').innerHTML = `Live block rate: <a href="https://mempool.space" target="_blank" rel="noopener"><span class="mono">${minPerBlock} min/block</span></a> — ${i.avg_block_source}.`;
+    $('status-dot').classList.add('live');
+    const minPerBlock = (i.avg_block_seconds / 60).toFixed(1);
+    $('status-text').innerHTML =
+      `Mainnet · BTC tip ${fmt.format(i.btc_tip_height)} · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`;
+    // NBSP + word-joiners keep the parenthetical on one line in every engine.
+    $('rate-note').textContent = ` (currently\u00A0${minPerBlock}\u00A0min\u2060/\u2060block)`;
   }
 
   // ─── boot ────────────────────────────────────────────────────────────
@@ -379,11 +336,11 @@
       const fromHash = parseHash();
       state.viewedCycle = fromHash != null ? Math.max(0, fromHash) : state.info.current_cycle_id;
       wireEvents();
-      await Promise.all([render(), loadCountdownTargets()]);
+      setInterval(tick, 1000);
+      await render();
     } catch (err) {
       console.error(err);
-      const dot = $('status-dot');
-      dot.className = 'status-dot err';
+      $('status-dot').className = 'status-dot err';
       $('status-text').textContent = 'offline';
     }
   })();
