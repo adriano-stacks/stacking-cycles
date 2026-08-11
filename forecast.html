@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Forecast a block · Stacks Cycles</title>
+<meta name="description" content="Date and Stacks reward cycle for any Bitcoin block height, past or future." />
+<meta property="og:title" content="Forecast a block · Stacks Cycles" />
+<meta property="og:description" content="Date and Stacks reward cycle for any Bitcoin block height, past or future." />
+
+<link rel="preconnect" href="https://api.hiro.so" />
+<link rel="preconnect" href="https://mempool.space" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ─── header ─────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="brand">
+      <a href="index.html">
+        <span class="brand-mark"></span>
+        <span>Stacks Cycles</span>
+      </a>
+    </div>
+    <div class="topbar-meta">
+      <span class="status-dot live" id="status-dot"></span>
+      <span id="status-text">connecting…</span>
+    </div>
+  </header>
+
+  <!-- ─── nav ────────────────────────────────────────────────────────── -->
+  <nav class="navbar">
+    <div class="nav-cluster">
+      <a class="btn" href="index.html">← Cycles</a>
+    </div>
+  </nav>
+
+  <!-- ─── oracle ─────────────────────────────────────────────────────── -->
+  <section class="section" style="margin-top:0">
+    <div class="section-head">
+      <h2>Forecast a block</h2>
+      <span class="hint">Past or future</span>
+    </div>
+    <div class="card oracle-card">
+      <div class="oracle-input-side">
+        <label class="oracle-label" for="oracle-input">Bitcoin block height</label>
+        <input class="oracle-input" id="oracle-input" type="number" min="0" inputmode="numeric" placeholder="e.g. 1000000" />
+        <div class="oracle-tips">
+          <button class="oracle-tip" data-block="1000000">1,000,000</button>
+          <button class="oracle-tip" data-block="1050000">1,050,000</button>
+          <button class="oracle-tip" data-block="1100000">1,100,000</button>
+          <button class="oracle-tip" data-block="666050">PoX origin</button>
+        </div>
+      </div>
+      <div class="oracle-result empty" id="oracle-result">
+        Enter any Bitcoin block height to see its date and which Stacks cycle it falls in.
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── notes ──────────────────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <h2>Method</h2>
+    </div>
+    <div class="card notes-card">
+      <p>Each Stacks reward cycle is <span class="mono">2,100</span> Bitcoin blocks — a <span class="mono">2,000-block</span> reward phase followed by a <span class="mono">100-block</span> prepare phase. Cycle 0 begins at block <span class="mono">666,050</span>.</p>
+      <p>Past dates are confirmed Bitcoin block timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>. Forecasts use the live block interval of the current difficulty epoch.</p>
+      <p id="rate-readout">—</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Stacks Cycles</span>
+    <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro</a> &amp; <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a></span>
+  </footer>
+
+</div>
+
+<script src="stacks-cycles.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  let info = null;
+
+  // ─── formatters ──────────────────────────────────────────────────────
+  const fmt = new Intl.NumberFormat('en-US');
+  const $ = (id) => document.getElementById(id);
+  const fmtDate = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+
+  function relTime(ms) {
+    if (ms == null) return '';
+    const diff = ms - Date.now();
+    const abs = Math.abs(diff);
+    if (abs < 60_000) return diff < 0 ? 'just now' : 'momentarily';
+    const mins = Math.round(abs / 60_000);
+    const hrs = Math.round(abs / 3_600_000);
+    const days = Math.round(abs / 86_400_000);
+    const months = Math.round(days / 30.44);
+    const years = Math.round(days / 365.25);
+    let v, u;
+    if (mins < 60)       { v = mins; u = 'min'; }
+    else if (hrs < 36)   { v = hrs; u = 'hr'; }
+    else if (days < 60)  { v = days; u = 'day'; }
+    else if (months < 24){ v = months; u = 'mo'; }
+    else                 { v = years; u = 'yr'; }
+    const plural = v !== 1 ? 's' : '';
+    return diff < 0 ? `${v} ${u}${plural} ago` : `in ${v} ${u}${plural}`;
+  }
+
+  // ─── oracle ──────────────────────────────────────────────────────────
+  const ORACLE_PROMPT = 'Enter any Bitcoin block height to see its date and which Stacks cycle it falls in.';
+  let oracleDebounce = null;
+
+  function blockDiffLabel(h) {
+    const diff = h - info.current_burn_block_height;
+    if (diff === 0) return 'current tip';
+    if (diff > 0)   return `${fmt.format(diff)} blocks ahead`;
+    return `${fmt.format(-diff)} blocks ago`;
+  }
+
+  async function runOracle(value) {
+    const result = $('oracle-result');
+    const v = (value ?? '').toString().trim();
+    if (v === '') {
+      result.classList.add('empty');
+      result.textContent = ORACLE_PROMPT;
+      if (history.replaceState) history.replaceState(null, '', location.pathname);
+      return;
+    }
+    const h = Math.floor(Number(v));
+    if (!Number.isFinite(h) || h < 0) {
+      result.classList.remove('empty');
+      result.innerHTML = `<div class="or-error">Please enter a non-negative integer.</div>`;
+      return;
+    }
+    if (history.replaceState) history.replaceState(null, '', `#block=${h}`);
+
+    try {
+      const res = await StacksCycles.getBlock(h);
+      result.classList.remove('empty');
+      if (res.valid === false) {
+        result.innerHTML = `
+          <div class="or-result">
+            <div class="or-block-line">Bitcoin block</div>
+            <div class="or-block-num">${fmt.format(h)}</div>
+            <div class="or-tags"><span class="or-tag invalid">${res.message}</span></div>
+          </div>`;
+        return;
+      }
+      const ms = res.timestamp ? Date.parse(res.timestamp) : null;
+      const isPrepare = res.phase === 'prepare';
+      const phaseTag = isPrepare
+        ? `<span class="or-tag prepare">cycle ${res.cycle_id} · prepare phase</span>`
+        : `<span class="or-tag reward">cycle ${res.cycle_id} · reward phase</span>`;
+      const phaseSub = isPrepare
+        ? `anchors cycle ${res.anchors_cycle}`
+        : `block ${fmt.format(res.block_in_cycle)} of ${fmt.format(info.reward_cycle_length)}`;
+      const dateLine = ms != null
+        ? `<div class="or-date ${res.forecast ? 'forecast' : ''}">${fmtDate(ms)}</div>
+           <div class="or-sub">${fmtTime(ms)} · ${relTime(ms)}${res.forecast ? ' · forecast' : ' · confirmed'}</div>`
+        : `<div class="or-date">—</div>`;
+      result.innerHTML = `
+        <div class="or-result">
+          <div class="or-block-line">Bitcoin block · ${blockDiffLabel(h)}</div>
+          <div class="or-block-num">${fmt.format(h)}</div>
+          ${dateLine}
+          <div class="or-tags">
+            ${phaseTag}
+            <span class="or-tag-sub">${phaseSub}</span>
+            <a class="or-jump" href="index.html#cycle=${res.cycle_id}">View cycle ${res.cycle_id} →</a>
+          </div>
+        </div>`;
+    } catch (e) {
+      result.classList.remove('empty');
+      result.innerHTML = `<div class="or-error">${e.message || e}</div>`;
+    }
+  }
+
+  function wireEvents() {
+    $('oracle-input').addEventListener('input', (e) => {
+      clearTimeout(oracleDebounce);
+      const v = e.target.value;
+      oracleDebounce = setTimeout(() => runOracle(v), 220);
+    });
+    document.querySelectorAll('.oracle-tip[data-block]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const h = btn.dataset.block;
+        $('oracle-input').value = h;
+        runOracle(h);
+      });
+    });
+  }
+
+  function updateHeader() {
+    const ok = info.sources.pox === 'hiro' && info.sources.btc === 'mempool.space';
+    const dot = $('status-dot');
+    dot.className = 'status-dot ' + (ok ? 'live' : 'warn');
+    const minPerBlock = (info.avg_block_seconds / 60).toFixed(2);
+    $('status-text').innerHTML = ok
+      ? `Mainnet · BTC tip <span class="mono">${fmt.format(info.btc_tip_height)}</span> · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`
+      : 'Partial data';
+
+    $('rate-readout').innerHTML = `Live block rate: <a href="https://mempool.space" target="_blank" rel="noopener"><span class="mono">${minPerBlock} min/block</span></a> — ${info.avg_block_source}.`;
+  }
+
+  // ─── boot ────────────────────────────────────────────────────────────
+  (async function init() {
+    try {
+      info = await StacksCycles.getInfo();
+      updateHeader();
+      wireEvents();
+      const m = window.location.hash.match(/block=(\d+)/);
+      if (m) {
+        $('oracle-input').value = m[1];
+        await runOracle(m[1]);
+      }
+    } catch (err) {
+      console.error(err);
+      const dot = $('status-dot');
+      dot.className = 'status-dot err';
+      $('status-text').textContent = 'offline';
+    }
+  })();
+})();
+</script>
+</body>
+</html>
