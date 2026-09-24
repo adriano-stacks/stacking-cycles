@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bitcoin Bonds</title>
+<meta name="description" content="Plan ahead with projected bond opening dates, enrollment deadlines, and reward starts." />
+<meta property="og:title" content="Bitcoin Bonds" />
+<meta property="og:description" content="Key dates for the next Bitcoin Staking bonds." />
+<link rel="preconnect" href="https://api.hiro.so" />
+<link rel="preconnect" href="https://mempool.space" />
+<link rel="stylesheet" href="ds/tokens/tokens.css" />
+<link rel="stylesheet" href="styles.css" />
+<script>
+  (() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => { document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light'; };
+    apply();
+    mq.addEventListener('change', apply);
+  })();
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"><img src="ds/assets/stx-glyph.svg" alt="Stacks" /></span>
+    <span class="brand-name">Stacks Cycles</span>
+  </div>
+  <div class="topbar-meta">
+    <span class="status-dot" id="status-dot"></span>
+    <span class="status-text" id="status-text">connecting…</span>
+  </div>
+</header>
+
+<main class="page bonds-page">
+  <div class="bonds-heading">
+    <h1>Upcoming Bitcoin bonds</h1>
+    <div class="schedule-toolbar">
+      <label for="timezone">Dates in</label>
+      <select id="timezone" class="btn"><option value="utc">UTC</option><option value="local">Local time</option></select>
+      <button class="btn" id="refresh" type="button">Refresh</button>
+    </div>
+  </div>
+  <p id="schedule-status" role="status">Loading bond dates…</p>
+  <p class="or-error" id="schedule-error" role="alert" hidden></p>
+
+  <div id="schedule" aria-busy="true">
+    <section class="hero next-bond" id="next-bond" aria-labelledby="next-bond-title" hidden>
+      <div class="hero-head">
+        <div>
+          <div class="kicker">Next bond</div>
+          <h2 id="next-bond-title">—</h2>
+
+        </div>
+      </div>
+      <div class="bond-milestones" id="bond-milestones"></div>
+    </section>
+    <div class="section-head later-bonds-heading"><h2>Following bonds</h2></div>
+    <table class="bonds-table">
+      <caption class="visually-hidden">Bond planning dates. Operational dates are estimates, including dates that have passed.</caption>
+      <thead><tr>
+        <th scope="col"></th>
+        <th scope="col">Bond is announced<span>Expected</span></th>
+        <th scope="col">Enrollment closes<span>Projected</span></th>
+        <th scope="col">Bond opens<span>Projected</span></th>
+      </tr></thead>
+      <tbody id="bond-rows"></tbody>
+    </table>
+  </div>
+  <p class="footnote">Bond 1 is the Genesis Bond, starting at Bitcoin block 966,350. New bonds open every month (every two Stacks reward cycles). Enrollment closes 100 blocks before the bond starts; registration must be complete before then.</p>
+  <p class="footnote bonds-method">Bond are expected to be announced seven days before they open, when the Stacks Endowment publishes the bond parameters. This is an estimate; a past date does not confirm the bond has opened.</p>
+  <noscript><p>Enable JavaScript to load live bond projections.</p></noscript>
+
+  <footer class="foot">
+    <span>Stacks Cycles</span>
+    <span>Data from Hiro &amp; mempool.space</span>
+  </footer>
+</main>
+<script src="stacks-cycles.js"></script>
+<script src="bond-schedule.js"></script>
+<script src="bonds.js"></script>
+</body>
+</html>
