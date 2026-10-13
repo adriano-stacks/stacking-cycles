@@ -32,7 +32,7 @@
   function dateStatus(point, operational = false) {
     const status = document.createElement('span');
     status.className = 'bond-date-status';
-    status.textContent = operational ? 'Expected' : (point.forecast ? 'Projected' : 'Confirmed block');
+    status.textContent = !point.timestamp ? 'Unavailable' : operational ? 'Expected' : (point.forecast ? 'Projected' : 'Past block (API)');
     return status;
   }
 
@@ -68,7 +68,7 @@
       },
       {
         label: 'Bond opens', point: bond.start,
-        note: 'The bond’s begins accruing rewards: ', cycle: bond.cycle,
+        note: 'The bond begins accruing rewards: ', cycle: bond.cycle,
         detail: `BTC block ${fmt.format(bond.start.block)}`
       },
     ];
@@ -133,25 +133,22 @@
     $('schedule-error').hidden = true;
     try {
       const info = await StacksCycles.getInfo({ force });
-      const first = BondSchedule.upcomingBond(info);
+      const first = await BondSchedule.upcomingBond(info);
       const bonds = await BondSchedule.getBonds(first, 6);
       if (generation !== state.generation) return;
       if (!bonds[0].start.timestamp) throw new Error('Bond dates are unavailable. Please refresh to try again.');
       state.bonds = bonds;
       render();
       writeHash();
-      const fallback = info.sources.pox === 'fallback' || info.sources.btc === 'fallback' || info.btc_tip_height == null;
-      $('status-dot').className = `status-dot ${fallback ? '' : 'live'}`;
-      $('status-text').textContent = fallback ? 'Mainnet · using fallback data' : `Mainnet · BTC tip ${fmt.format(info.btc_tip_height)}`;
+      $('status-dot').className = 'status-dot live';
+      $('status-text').textContent = `Mainnet · BTC tip ${fmt.format(info.btc_tip_height)} · Stacks API`;
     } catch (error) {
       if (generation !== state.generation) return;
       $('schedule-error').textContent = error.message || 'Unable to load bond dates. Please try again.';
       $('schedule-error').hidden = false;
       $('schedule-status').textContent = state.bonds.length ? 'Showing the previous dates; the update failed.' : 'No dates loaded.';
-      if (!state.bonds.length) {
-        $('status-dot').className = 'status-dot err';
-        $('status-text').textContent = 'Data unavailable';
-      }
+      $('status-dot').className = 'status-dot err';
+      $('status-text').textContent = state.bonds.length ? 'Update failed · showing previous dates' : 'Data unavailable';
     } finally {
       if (generation === state.generation) $('schedule').setAttribute('aria-busy', 'false');
     }
