@@ -9,7 +9,6 @@
 <meta property="og:description" content="Date and Stacks reward cycle for any Bitcoin block height, past or future." />
 
 <link rel="preconnect" href="https://api.hiro.so" />
-<link rel="preconnect" href="https://mempool.space" />
 <link rel="stylesheet" href="ds/tokens/tokens.css" />
 <link rel="stylesheet" href="styles.css" />
 <script>
@@ -70,11 +69,11 @@
   </section>
 
   <!-- ─── footnote ─────────────────────────────────────────────────── -->
-  <p class="footnote">Each reward cycle is 2,100 Bitcoin blocks — a 2,000-block reward phase followed by a 100-block prepare phase. Cycle 0 begins at block 666,050. Past dates are confirmed timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>; forecasts use the live block interval of the current difficulty epoch<span id="rate-note"></span>.</p>
+  <p class="footnote">Dates and chain data come from the Stacks API. Cycle boundary dates use its schedule timestamps directly; past schedule times may be interpolated. Other future blocks follow its default model: the trailing 2,016-block pace until the next Bitcoin difficulty adjustment, then 10 minutes per block, anchored to the API’s Bitcoin tip rather than the clock<span id="rate-note"></span>. Past blocks without an API timestamp remain unavailable.</p>
 
   <footer class="foot">
     <span>Stacks Cycles</span>
-    <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro</a> &amp; <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a></span>
+    <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro Stacks API</a></span>
   </footer>
 
 </main>
@@ -159,7 +158,7 @@
         : `block ${fmt.format(res.block_in_cycle)} of ${fmt.format(info.reward_cycle_length)}`;
       const dateLine = ms != null
         ? `<div class="or-date">${fmtDate(ms)}</div>
-           <div class="or-sub">${fmtTime(ms)} · ${relTime(ms)} · ${res.forecast ? 'forecast' : 'confirmed'}</div>`
+           <div class="or-sub">${fmtTime(ms)} · ${relTime(ms)} · ${res.forecast ? 'forecast' : 'past block (API)'}</div>`
         : `<div class="or-date">—</div>`;
       result.innerHTML = `
         <div class="or-result">
@@ -196,10 +195,9 @@
   function updateHeader() {
     $('status-dot').classList.add('live');
     const minPerBlock = (info.avg_block_seconds / 60).toFixed(1);
-    $('status-text').innerHTML =
-      `Mainnet · BTC tip ${fmt.format(info.btc_tip_height)} · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`;
-    // NBSP + word-joiners keep the parenthetical on one line in every engine.
-    $('rate-note').textContent = ` (currently\u00A0${minPerBlock}\u00A0min\u2060/\u2060block)`;
+    $('status-text').textContent = `Mainnet · BTC tip ${fmt.format(info.btc_tip_height)} · ${minPerBlock} min/block`;
+    $('status-text').title = info.avg_block_source;
+    $('rate-note').textContent = ` (current pace: ${minPerBlock} min/block; ${info.avg_block_source})`;
   }
 
   // ─── boot ────────────────────────────────────────────────────────────

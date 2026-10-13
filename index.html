@@ -9,7 +9,6 @@
 <meta property="og:description" content="Track Stacks reward cycles. Past, present, and forecast." />
 
 <link rel="preconnect" href="https://api.hiro.so" />
-<link rel="preconnect" href="https://mempool.space" />
 <link rel="stylesheet" href="ds/tokens/tokens.css" />
 <link rel="stylesheet" href="styles.css" />
 <script>
@@ -82,7 +81,7 @@
         </div>
       </div>
       <div class="phase-cell">
-        <div class="kicker" id="end-kicker">Next cycle reward phase starts</div>
+        <div class="kicker" id="end-kicker">Cycle’s final block</div>
         <div class="phase-date" id="end-date">—</div>
         <div class="phase-sub" id="end-sub"></div>
         <div class="phase-foot">
@@ -116,11 +115,11 @@
   </section>
 
   <!-- ─── footnote ─────────────────────────────────────────────────── -->
-  <p class="footnote">Each reward cycle is 2,100 Bitcoin blocks — a 2,000-block reward phase followed by a 100-block prepare phase. Cycle 0 begins at block 666,050. Past dates are confirmed timestamps from <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>; forecasts use the live block interval of the current difficulty epoch<span id="rate-note"></span>.</p>
+  <p class="footnote">Cycle boundaries and dates come from the Stacks API. Past schedule times may be interpolated between known Bitcoin blocks. Forecasts use the API’s trailing-block pace until the next Bitcoin difficulty adjustment, then 10 minutes per block<span id="rate-note"></span>.</p>
 
   <footer class="foot">
     <span>Stacks Cycles</span>
-    <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro</a> &amp; <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a></span>
+    <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro Stacks API</a></span>
   </footer>
 
 </main>
@@ -231,7 +230,7 @@
       state.endMs = endMs; state.prepMs = prepMs; state.inPrepare = inPrep;
       $('prep-kicker').textContent = inPrep ? 'In prepare phase' : 'Prepare phase begins · forecast';
       $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · anchors cycle ${anchors}` : '';
-      $('end-kicker').textContent = 'Next cycle reward phase starts · forecast';
+      $('end-kicker').textContent = 'Cycle’s final block · forecast';
       $('end-sub').textContent = endMs != null ? fmtTime(endMs) : '';
       $('prep-cd').style.display = prepMs != null ? '' : 'none';
       $('end-cd').style.display = endMs != null ? '' : 'none';
@@ -259,7 +258,7 @@
       $('status-pill-text').textContent = 'Upcoming';
       $('prep-kicker').textContent = 'Prepare phase begins · forecast';
       $('prep-sub').textContent = prepMs != null ? `${fmtTime(prepMs)} · ${relTime(prepMs)} · anchors cycle ${anchors}` : '';
-      $('end-kicker').textContent = 'Next cycle reward phase starts · forecast';
+      $('end-kicker').textContent = 'Cycle’s final block · forecast';
       $('end-sub').textContent = endMs != null ? `${fmtTime(endMs)} · ${relTime(endMs)}` : '';
       $('prep-cd').style.display = 'none';
       $('end-cd').style.display = 'none';
@@ -323,10 +322,9 @@
     const i = state.info;
     $('status-dot').classList.add('live');
     const minPerBlock = (i.avg_block_seconds / 60).toFixed(1);
-    $('status-text').innerHTML =
-      `Mainnet · BTC tip ${fmt.format(i.btc_tip_height)} · <a href="https://mempool.space" target="_blank" rel="noopener">${minPerBlock} min/block</a>`;
-    // NBSP + word-joiners keep the parenthetical on one line in every engine.
-    $('rate-note').textContent = ` (currently\u00A0${minPerBlock}\u00A0min\u2060/\u2060block)`;
+    $('status-text').textContent = `Mainnet · BTC tip ${fmt.format(i.btc_tip_height)} · ${minPerBlock} min/block`;
+    $('status-text').title = i.avg_block_source;
+    $('rate-note').textContent = ` (local pace estimate: ${minPerBlock} min/block; ${i.avg_block_source})`;
   }
 
   // ─── boot ────────────────────────────────────────────────────────────

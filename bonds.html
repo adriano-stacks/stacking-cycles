@@ -8,7 +8,6 @@
 <meta property="og:title" content="Bitcoin Bonds" />
 <meta property="og:description" content="Key dates for the next Bitcoin Staking bonds." />
 <link rel="preconnect" href="https://api.hiro.so" />
-<link rel="preconnect" href="https://mempool.space" />
 <link rel="stylesheet" href="ds/tokens/tokens.css" />
 <link rel="stylesheet" href="styles.css" />
 <script>
@@ -67,13 +66,13 @@
       <tbody id="bond-rows"></tbody>
     </table>
   </div>
-  <p class="footnote">Bond 1 is the Genesis Bond, starting at Bitcoin block 966,350. New bonds open every month (every two Stacks reward cycles). Enrollment closes 100 blocks before the bond starts; registration must be complete before then.</p>
-  <p class="footnote bonds-method">Bond are expected to be announced seven days before they open, when the Stacks Endowment publishes the bond parameters. This is an estimate; a past date does not confirm the bond has opened.</p>
+  <p class="footnote">Bond indexes, activation dates, and enrollment cutoffs come from the Stacks API, including projected schedules for bonds not yet set up. Registration must be complete before the API’s enrollment cutoff block. Past block times may be interpolated by the API.</p>
+  <p class="footnote bonds-method">Announcements are estimated seven days before activation. This is a planning assumption, not an announcement date supplied or confirmed by the API. A projected bond schedule does not confirm that its parameters have been published.</p>
   <noscript><p>Enable JavaScript to load live bond projections.</p></noscript>
 
   <footer class="foot">
     <span>Stacks Cycles</span>
-    <span>Data from Hiro &amp; mempool.space</span>
+    <span>Data from <a href="https://api.hiro.so" target="_blank" rel="noopener">Hiro Stacks API</a></span>
   </footer>
 </main>
 <script src="stacks-cycles.js"></script>
